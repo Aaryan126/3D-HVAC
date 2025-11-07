@@ -27,10 +27,10 @@ controls.maxDistance = 50;
 controls.maxPolarAngle = Math.PI / 2;
 
 // Lighting
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.8); // Increased from 0.4
 scene.add(ambientLight);
 
-const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2); // Increased from 0.8
 directionalLight.position.set(10, 20, 10);
 directionalLight.castShadow = true;
 directionalLight.shadow.camera.left = -50;
@@ -41,21 +41,26 @@ directionalLight.shadow.mapSize.width = 2048;
 directionalLight.shadow.mapSize.height = 2048;
 scene.add(directionalLight);
 
+// Additional directional light from the front to light up faces
+const frontLight = new THREE.DirectionalLight(0xffffff, 0.6);
+frontLight.position.set(0, 10, 20);
+scene.add(frontLight);
+
 // Additional point lights for atmosphere
-const pointLight1 = new THREE.PointLight(0x4488ff, 0.5, 30);
+const pointLight1 = new THREE.PointLight(0xffffff, 0.4, 30); // Changed to white, reduced intensity
 pointLight1.position.set(-10, 5, -10);
 scene.add(pointLight1);
 
-const pointLight2 = new THREE.PointLight(0xff8844, 0.5, 30);
+const pointLight2 = new THREE.PointLight(0xffffff, 0.4, 30); // Changed to white, reduced intensity
 pointLight2.position.set(10, 5, 10);
 scene.add(pointLight2);
 
 // Floor
 const floorGeometry = new THREE.PlaneGeometry(100, 100);
 const floorMaterial = new THREE.MeshStandardMaterial({
-    color: 0xe0e0e0, // Whitish grey
-    roughness: 0.9,
-    metalness: 0.1
+    color: 0x2a2a3a,
+    roughness: 0.8,
+    metalness: 0.2
 });
 const floor = new THREE.Mesh(floorGeometry, floorMaterial);
 floor.rotation.x = -Math.PI / 2;
@@ -63,7 +68,7 @@ floor.receiveShadow = true;
 scene.add(floor);
 
 // Grid Helper
-const gridHelper = new THREE.GridHelper(100, 50, 0xcccccc, 0xdddddd);
+const gridHelper = new THREE.GridHelper(100, 50, 0x444444, 0x222222);
 scene.add(gridHelper);
 
 // HVAC Equipment Data
