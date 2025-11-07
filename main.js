@@ -75,7 +75,8 @@ scene.add(gridHelper);
 const equipmentData = {
     chiller1: { temp: 7.2, pressure: 4.5, flow: 120, status: 'Running', hasIssue: false },
     ahu1: { temp: 18.5, humidity: 55, flow: 8500, status: 'Running', hasIssue: false },
-    pump1: { flow: 95, pressure: 6.2, power: 15.5, status: 'Running', hasIssue: false },
+    chillerWaterPump: { flow: 95, pressure: 6.2, power: 15.5, status: 'Running', hasIssue: false },
+    condenserWaterPump: { flow: 88, pressure: 5.8, power: 14.2, status: 'Running', hasIssue: false },
     coolingTower: { temp: 32.1, flow: 150, fanSpeed: 85, status: 'Running', hasIssue: false }
 };
 
@@ -83,7 +84,8 @@ const equipmentData = {
 const equipmentPositions = {
     chiller1: new THREE.Vector3(-10, 0, -8),
     ahu1: new THREE.Vector3(8, 0, -8),
-    pump1: new THREE.Vector3(-5, 0, 5),
+    chillerWaterPump: new THREE.Vector3(-5, 0, 5),
+    condenserWaterPump: new THREE.Vector3(-5, 0, 0),
     coolingTower: new THREE.Vector3(10, 0, 5)
 };
 
@@ -136,24 +138,55 @@ function createHVACEquipment() {
         createEquipmentLabel(fbx);
     });
 
-    // Load Pump FBX Model
-    const pumpLoader = new FBXLoader();
-    pumpLoader.load('Pump.fbx', (fbx) => {
-        fbx.scale.setScalar(0.04); // Same scale as other equipment
+    // Load Chiller Water Pump FBX Model (Blue)
+    const chillerWaterPumpLoader = new FBXLoader();
+    chillerWaterPumpLoader.load('Pump.fbx', (fbx) => {
+        fbx.scale.setScalar(0.02); // 50% of original size
         fbx.position.set(-5, 2, 5);
 
         fbx.traverse((child) => {
             if (child.isMesh) {
                 child.castShadow = true;
                 child.receiveShadow = true;
+                // Make it blue
+                if (child.material) {
+                    child.material = child.material.clone();
+                    child.material.color.setHex(0x3498db); // Blue color
+                }
             }
         });
 
-        fbx.userData = { type: 'pump', id: 'pump1', isObstacle: true, radius: 1.5 };
+        fbx.userData = { type: 'pump', id: 'chillerWaterPump', isObstacle: true, radius: 1.5 };
         equipment.add(fbx);
         collisionObjects.push(fbx);
 
-        // Create equipment label for the pump
+        // Create equipment label for the chiller water pump
+        createEquipmentLabel(fbx);
+    });
+
+    // Load Condenser Water Pump FBX Model (Green)
+    const condenserWaterPumpLoader = new FBXLoader();
+    condenserWaterPumpLoader.load('Pump.fbx', (fbx) => {
+        fbx.scale.setScalar(0.02); // 50% of original size
+        fbx.position.set(-5, 2, 0);
+
+        fbx.traverse((child) => {
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+                // Make it green
+                if (child.material) {
+                    child.material = child.material.clone();
+                    child.material.color.setHex(0x2ecc71); // Green color
+                }
+            }
+        });
+
+        fbx.userData = { type: 'pump', id: 'condenserWaterPump', isObstacle: true, radius: 1.5 };
+        equipment.add(fbx);
+        collisionObjects.push(fbx);
+
+        // Create equipment label for the condenser water pump
         createEquipmentLabel(fbx);
     });
 
@@ -602,7 +635,15 @@ function updateEquipmentLabels() {
         // Update data
         const data = equipmentData[equipment.userData.id];
         if (data) {
-            let text = `${equipment.userData.type.toUpperCase()}\n`;
+            // Custom label names for equipment
+            let labelName = equipment.userData.type.toUpperCase();
+            if (equipment.userData.id === 'chillerWaterPump') {
+                labelName = 'CHW PUMP';
+            } else if (equipment.userData.id === 'condenserWaterPump') {
+                labelName = 'CW PUMP';
+            }
+
+            let text = `${labelName}\n`;
             Object.entries(data).forEach(([key, value]) => {
                 if (key !== 'hasIssue') {
                     text += `${key}: ${value}\n`;
@@ -707,15 +748,22 @@ function handleAIResponse(message) {
         let equipmentId = null;
         let equipmentName = '';
 
-        if (lowerMessage.includes('chiller')) {
+        if (lowerMessage.includes('chiller water pump') || lowerMessage.includes('chw pump')) {
+            equipmentId = 'chillerWaterPump';
+            equipmentName = 'Chiller Water Pump';
+        } else if (lowerMessage.includes('condenser water pump') || lowerMessage.includes('cdw pump')) {
+            equipmentId = 'condenserWaterPump';
+            equipmentName = 'Condenser Water Pump';
+        } else if (lowerMessage.includes('chiller')) {
             equipmentId = 'chiller1';
             equipmentName = 'chiller';
         } else if (lowerMessage.includes('ahu') || lowerMessage.includes('air')) {
             equipmentId = 'ahu1';
             equipmentName = 'AHU';
         } else if (lowerMessage.includes('pump')) {
-            equipmentId = 'pump1';
-            equipmentName = 'pump';
+            // Generic pump - default to chiller water pump
+            equipmentId = 'chillerWaterPump';
+            equipmentName = 'Chiller Water Pump';
         } else if (lowerMessage.includes('tower') || lowerMessage.includes('cooling')) {
             equipmentId = 'coolingTower';
             equipmentName = 'cooling tower';
@@ -737,13 +785,13 @@ function handleAIResponse(message) {
                 // AHU has radius 3, so stand at 3.5 units away
                 targetPos.x += 3.5; // Stand to the right of AHU
                 targetPos.z += 0;
-            } else if (equipmentId === 'pump1') {
-                // Pump has radius 1.5, so stand at 2 units away
+            } else if (equipmentId === 'chillerWaterPump' || equipmentId === 'condenserWaterPump') {
+                // Pumps have radius 1.5, so stand at 2 units away
                 targetPos.x -= 2; // Stand to the left of pump
                 targetPos.z += 0;
             } else if (equipmentId === 'coolingTower') {
-                // Tower has radius 2.8, so stand at 3.3 units away
-                targetPos.x -= 3.3; // Stand to the left of tower
+                // Tower has radius 3.5, so stand at 4 units away
+                targetPos.x -= 4; // Stand to the left of tower
                 targetPos.z += 0;
             }
 
