@@ -147,16 +147,28 @@ function createHVACEquipment() {
     equipment.add(pump);
     collisionObjects.push(pump);
 
-    // Cooling Tower
-    const towerBase = new THREE.CylinderGeometry(2, 2.5, 4, 8);
-    const towerMaterial = new THREE.MeshStandardMaterial({ color: 0x95a5a6 });
-    const coolingTower = new THREE.Mesh(towerBase, towerMaterial);
-    coolingTower.position.set(10, 2, 5);
-    coolingTower.castShadow = true;
-    coolingTower.receiveShadow = true;
-    coolingTower.userData = { type: 'coolingTower', id: 'coolingTower', isObstacle: true, radius: 2.8 };
-    equipment.add(coolingTower);
-    collisionObjects.push(coolingTower);
+    // Load Cooling Tower FBX Model
+    const ctLoader = new FBXLoader();
+
+    ctLoader.load('CT.fbx', (fbx) => {
+        fbx.scale.setScalar(0.04); // Same scale as other equipment
+        fbx.position.set(10, 0, 5);
+
+        // Set up shadows
+        fbx.traverse((child) => {
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+            }
+        });
+
+        fbx.userData = { type: 'coolingTower', id: 'coolingTower', isObstacle: true, radius: 3.5 };
+        equipment.add(fbx);
+        collisionObjects.push(fbx);
+
+        // Create equipment label for the cooling tower
+        createEquipmentLabel(fbx);
+    });
 
     return equipment;
 }
@@ -347,6 +359,8 @@ class Engineer {
         this.targetPosition = targetPos.clone();
         this.targetPosition.y = 0;
         this.onArrivalCallback = onArrival;
+        this.stuckCounter = 0; // Reset stuck counter
+        this.lastPosition = this.model ? this.model.position.clone() : new THREE.Vector3();
     }
 
     update(deltaTime) {
@@ -375,32 +389,63 @@ class Engineer {
                 newPosition.addScaledVector(direction, moveDistance);
                 newPosition.y = 0;
 
+                // Check if stuck (not moving much)
+                const movedDistance = this.model.position.distanceTo(this.lastPosition);
+                if (movedDistance < 0.01) {
+                    this.stuckCounter = (this.stuckCounter || 0) + 1;
+                } else {
+                    this.stuckCounter = 0;
+                }
+                this.lastPosition = this.model.position.clone();
+
                 // Check collision before moving
+                let moved = false;
                 if (!this.checkCollision(newPosition)) {
                     this.model.position.copy(newPosition);
+                    moved = true;
                 } else {
                     // Try to move around obstacle
-                    // Try moving perpendicular to the direction
                     const perpendicular1 = new THREE.Vector3(-direction.z, 0, direction.x);
                     const perpendicular2 = new THREE.Vector3(direction.z, 0, -direction.x);
 
-                    const alt1 = this.model.position.clone().addScaledVector(perpendicular1, moveDistance);
-                    const alt2 = this.model.position.clone().addScaledVector(perpendicular2, moveDistance);
+                    // Try diagonal movements for better navigation
+                    const diagonal1 = new THREE.Vector3().addVectors(direction, perpendicular1).normalize();
+                    const diagonal2 = new THREE.Vector3().addVectors(direction, perpendicular2).normalize();
 
-                    if (!this.checkCollision(alt1)) {
-                        this.model.position.copy(alt1);
-                    } else if (!this.checkCollision(alt2)) {
-                        this.model.position.copy(alt2);
+                    const options = [
+                        this.model.position.clone().addScaledVector(perpendicular1, moveDistance * 1.2),
+                        this.model.position.clone().addScaledVector(perpendicular2, moveDistance * 1.2),
+                        this.model.position.clone().addScaledVector(diagonal1, moveDistance),
+                        this.model.position.clone().addScaledVector(diagonal2, moveDistance),
+                    ];
+
+                    // Try each option and pick the first valid one
+                    for (const option of options) {
+                        if (!this.checkCollision(option)) {
+                            this.model.position.copy(option);
+                            moved = true;
+                            break;
+                        }
                     }
-                    // If both blocked, just wait until path clears
                 }
 
-                // Smoothly rotate to face movement direction
-                const targetAngle = Math.atan2(direction.x, direction.z);
-                const currentAngle = this.model.rotation.y;
-                const angleDiff = targetAngle - currentAngle;
-                const shortestAngle = Math.atan2(Math.sin(angleDiff), Math.cos(angleDiff));
-                this.model.rotation.y += shortestAngle * 0.1;  // Smooth rotation
+                // If stuck for too long, try to unstuck by moving backwards slightly
+                if (this.stuckCounter > 30) {
+                    const backwardPos = this.model.position.clone().addScaledVector(direction, -moveDistance * 2);
+                    if (!this.checkCollision(backwardPos)) {
+                        this.model.position.copy(backwardPos);
+                    }
+                    this.stuckCounter = 0;
+                }
+
+                // Smoothly rotate to face movement direction (only if moving)
+                if (moved || this.stuckCounter < 10) {
+                    const targetAngle = Math.atan2(direction.x, direction.z);
+                    const currentAngle = this.model.rotation.y;
+                    const angleDiff = targetAngle - currentAngle;
+                    const shortestAngle = Math.atan2(Math.sin(angleDiff), Math.cos(angleDiff));
+                    this.model.rotation.y += shortestAngle * 0.1;  // Smooth rotation
+                }
             } else {
                 // Reached destination
                 this.targetPosition = null;
