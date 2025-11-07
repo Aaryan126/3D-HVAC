@@ -73,11 +73,39 @@ scene.add(gridHelper);
 
 // HVAC Equipment Data
 const equipmentData = {
-    chiller1: { temp: 7.2, pressure: 4.5, flow: 120, status: 'Running', hasIssue: false },
-    ahu1: { temp: 18.5, humidity: 55, flow: 8500, status: 'Running', hasIssue: false },
-    chillerWaterPump: { flow: 95, pressure: 6.2, power: 15.5, status: 'Running', hasIssue: false },
-    condenserWaterPump: { flow: 88, pressure: 5.8, power: 14.2, status: 'Running', hasIssue: false },
-    coolingTower: { temp: 32.1, flow: 150, fanSpeed: 85, status: 'Running', hasIssue: false }
+    chiller1: {
+        'Supply Temp (°C)': 7.2,
+        'Return Temp (°C)': 12.5,
+        'Power (kW)': 450,
+        'Flow': 120,
+        status: 'Running',
+        hasIssue: false
+    },
+    ahu1: {
+        'Power (kW)': 25.5,
+        'Supply Temp (°C)': 18.5,
+        'Return Temp (°C)': 24.2,
+        status: 'Running',
+        hasIssue: false
+    },
+    chillerWaterPump: {
+        'Power (kW)': 15.5,
+        'Pressure (kPa)': 620,
+        status: 'Running',
+        hasIssue: false
+    },
+    condenserWaterPump: {
+        'Power (kW)': 14.2,
+        'Pressure (kPa)': 580,
+        status: 'Running',
+        hasIssue: false
+    },
+    coolingTower: {
+        'Temperature (°C)': 32.1,
+        'Flow': 150,
+        status: 'Running',
+        hasIssue: false
+    }
 };
 
 // Equipment positions for engineers to walk to
@@ -645,7 +673,7 @@ function updateEquipmentLabels() {
 
             let text = `${labelName}\n`;
             Object.entries(data).forEach(([key, value]) => {
-                if (key !== 'hasIssue') {
+                if (key !== 'hasIssue' && key !== 'status') {
                     text += `${key}: ${value}\n`;
                 }
             });
@@ -667,15 +695,22 @@ function updateEquipmentLabels() {
 setInterval(() => {
     Object.keys(equipmentData).forEach(key => {
         const data = equipmentData[key];
-        if (data.temp !== undefined) {
-            data.temp = parseFloat((parseFloat(data.temp) + (Math.random() - 0.5) * 0.5).toFixed(1));
-        }
-        if (data.pressure !== undefined) {
-            data.pressure = parseFloat((parseFloat(data.pressure) + (Math.random() - 0.5) * 0.2).toFixed(1));
-        }
-        if (data.flow !== undefined) {
-            data.flow = Math.round(parseFloat(data.flow) + (Math.random() - 0.5) * 5);
-        }
+
+        // Update temperature fields
+        Object.keys(data).forEach(field => {
+            if (field.includes('Temp') || field === 'Temperature (°C)') {
+                data[field] = parseFloat((parseFloat(data[field]) + (Math.random() - 0.5) * 0.5).toFixed(1));
+            }
+            if (field.includes('Pressure')) {
+                data[field] = Math.round(parseFloat(data[field]) + (Math.random() - 0.5) * 10);
+            }
+            if (field === 'Flow') {
+                data[field] = Math.round(parseFloat(data[field]) + (Math.random() - 0.5) * 5);
+            }
+            if (field.includes('Power')) {
+                data[field] = parseFloat((parseFloat(data[field]) + (Math.random() - 0.5) * 2).toFixed(1));
+            }
+        });
     });
 }, 2000);
 
