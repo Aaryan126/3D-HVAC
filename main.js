@@ -53,9 +53,9 @@ scene.add(pointLight2);
 // Floor
 const floorGeometry = new THREE.PlaneGeometry(100, 100);
 const floorMaterial = new THREE.MeshStandardMaterial({
-    color: 0x2a2a3a,
-    roughness: 0.8,
-    metalness: 0.2
+    color: 0xe0e0e0, // Whitish grey
+    roughness: 0.9,
+    metalness: 0.1
 });
 const floor = new THREE.Mesh(floorGeometry, floorMaterial);
 floor.rotation.x = -Math.PI / 2;
@@ -63,7 +63,7 @@ floor.receiveShadow = true;
 scene.add(floor);
 
 // Grid Helper
-const gridHelper = new THREE.GridHelper(100, 50, 0x444444, 0x222222);
+const gridHelper = new THREE.GridHelper(100, 50, 0xcccccc, 0xdddddd);
 scene.add(gridHelper);
 
 // HVAC Equipment Data
