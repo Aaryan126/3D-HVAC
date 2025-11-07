@@ -68,10 +68,18 @@ scene.add(gridHelper);
 
 // HVAC Equipment Data
 const equipmentData = {
-    chiller1: { temp: 7.2, pressure: 4.5, flow: 120, status: 'Running' },
-    ahu1: { temp: 18.5, humidity: 55, flow: 8500, status: 'Running' },
-    pump1: { flow: 95, pressure: 6.2, power: 15.5, status: 'Running' },
-    coolingTower: { temp: 32.1, flow: 150, fanSpeed: 85, status: 'Running' }
+    chiller1: { temp: 7.2, pressure: 4.5, flow: 120, status: 'Running', hasIssue: false },
+    ahu1: { temp: 18.5, humidity: 55, flow: 8500, status: 'Running', hasIssue: false },
+    pump1: { flow: 95, pressure: 6.2, power: 15.5, status: 'Running', hasIssue: false },
+    coolingTower: { temp: 32.1, flow: 150, fanSpeed: 85, status: 'Running', hasIssue: false }
+};
+
+// Equipment positions for engineers to walk to
+const equipmentPositions = {
+    chiller1: new THREE.Vector3(-10, 0, -8),
+    ahu1: new THREE.Vector3(8, 0, -8),
+    pump1: new THREE.Vector3(-5, 0, 5),
+    coolingTower: new THREE.Vector3(10, 0, 5)
 };
 
 // Collision objects array
@@ -94,7 +102,7 @@ function createHVACEquipment() {
             }
         });
 
-        fbx.userData = { type: 'chiller', id: 'chiller1', isObstacle: true, radius: 2.5 };
+        fbx.userData = { type: 'chiller', id: 'chiller1', isObstacle: true, radius: 5 }; // Bigger collision radius
         equipment.add(fbx);
         collisionObjects.push(fbx);
 
@@ -463,9 +471,20 @@ function updateEquipmentLabels() {
         if (data) {
             let text = `${equipment.userData.type.toUpperCase()}\n`;
             Object.entries(data).forEach(([key, value]) => {
-                text += `${key}: ${value}\n`;
+                if (key !== 'hasIssue') {
+                    text += `${key}: ${value}\n`;
+                }
             });
             element.textContent = text;
+
+            // Change color if there's an issue
+            if (data.hasIssue) {
+                element.style.color = '#ff0000';
+                element.style.borderColor = '#ff0000';
+            } else {
+                element.style.color = '#0f0';
+                element.style.borderColor = '#0f0';
+            }
         }
     });
 }
@@ -475,16 +494,35 @@ setInterval(() => {
     Object.keys(equipmentData).forEach(key => {
         const data = equipmentData[key];
         if (data.temp !== undefined) {
-            data.temp = (data.temp + (Math.random() - 0.5) * 0.5).toFixed(1);
+            data.temp = parseFloat((parseFloat(data.temp) + (Math.random() - 0.5) * 0.5).toFixed(1));
         }
         if (data.pressure !== undefined) {
-            data.pressure = (data.pressure + (Math.random() - 0.5) * 0.2).toFixed(1);
+            data.pressure = parseFloat((parseFloat(data.pressure) + (Math.random() - 0.5) * 0.2).toFixed(1));
         }
         if (data.flow !== undefined) {
-            data.flow = Math.round(data.flow + (Math.random() - 0.5) * 5);
+            data.flow = Math.round(parseFloat(data.flow) + (Math.random() - 0.5) * 5);
         }
     });
 }, 2000);
+
+// Function to create an equipment issue
+window.createIssue = function(equipmentId) {
+    if (equipmentData[equipmentId]) {
+        equipmentData[equipmentId].status = 'FAULT';
+        equipmentData[equipmentId].hasIssue = true;
+        addChatMessage(`⚠️ ALERT: ${equipmentId.toUpperCase()} has a fault!`, 'ai');
+    }
+};
+
+// Simulate random equipment issues every 30 seconds
+setInterval(() => {
+    const equipmentIds = Object.keys(equipmentData);
+    const randomEquipment = equipmentIds[Math.floor(Math.random() * equipmentIds.length)];
+
+    if (!equipmentData[randomEquipment].hasIssue && Math.random() > 0.7) {
+        createIssue(randomEquipment);
+    }
+}, 30000);
 
 // Chatbot Functions
 window.toggleChatbot = function() {
@@ -531,6 +569,57 @@ function addChatMessage(text, sender) {
 function handleAIResponse(message) {
     const lowerMessage = message.toLowerCase();
 
+    // Fix commands
+    if (lowerMessage.includes('fix') || lowerMessage.includes('repair')) {
+        let equipmentId = null;
+        let equipmentName = '';
+
+        if (lowerMessage.includes('chiller')) {
+            equipmentId = 'chiller1';
+            equipmentName = 'chiller';
+        } else if (lowerMessage.includes('ahu') || lowerMessage.includes('air')) {
+            equipmentId = 'ahu1';
+            equipmentName = 'AHU';
+        } else if (lowerMessage.includes('pump')) {
+            equipmentId = 'pump1';
+            equipmentName = 'pump';
+        } else if (lowerMessage.includes('tower') || lowerMessage.includes('cooling')) {
+            equipmentId = 'coolingTower';
+            equipmentName = 'cooling tower';
+        }
+
+        if (equipmentId && equipmentPositions[equipmentId]) {
+            const engineer = engineers[Math.floor(Math.random() * engineers.length)];
+
+            // Move engineer to equipment - stand far enough to avoid collision
+            const targetPos = equipmentPositions[equipmentId].clone();
+            targetPos.x += 4; // Stand well away from equipment to avoid collision
+            targetPos.z += 2;
+            engineer.moveTo(targetPos);
+
+            // After walking, start working
+            setTimeout(() => {
+                engineer.work(8000); // Work for 8 seconds
+                engineer.speak(`Working on the ${equipmentName} now...`, 3000);
+
+                // Fix the equipment after working
+                setTimeout(() => {
+                    if (equipmentData[equipmentId].hasIssue) {
+                        equipmentData[equipmentId].status = 'Running';
+                        equipmentData[equipmentId].hasIssue = false;
+                        engineer.speak(`${equipmentName} is fixed! Back to normal operation.`, 4000);
+                    }
+                }, 8000);
+            }, 5000); // Wait 5 seconds for engineer to walk there
+
+            return {
+                text: `${engineer.name} is heading to fix the ${equipmentName}.`,
+                engineer: engineer.name,
+                engineerResponse: `On my way to the ${equipmentName}!`
+            };
+        }
+    }
+
     if (lowerMessage.includes('temperature') || lowerMessage.includes('temp')) {
         return {
             text: "I'll check the temperature readings for you.",
@@ -550,14 +639,24 @@ function handleAIResponse(message) {
             engineerResponse: "On my way to inspect the equipment now."
         };
     } else if (lowerMessage.includes('status') || lowerMessage.includes('how')) {
-        return {
-            text: "All HVAC systems are running normally.",
-            engineer: 'Sarah',
-            engineerResponse: "All equipment operating within parameters. No issues detected."
-        };
+        const issues = Object.entries(equipmentData).filter(([id, data]) => data.hasIssue);
+        if (issues.length > 0) {
+            const issueList = issues.map(([id]) => id).join(', ');
+            return {
+                text: `Warning: Issues detected on ${issueList}`,
+                engineer: 'Sarah',
+                engineerResponse: `We have ${issues.length} equipment fault(s) that need attention.`
+            };
+        } else {
+            return {
+                text: "All HVAC systems are running normally.",
+                engineer: 'Sarah',
+                engineerResponse: "All equipment operating within parameters. No issues detected."
+            };
+        }
     } else {
         return {
-            text: "I can help you with equipment status, temperatures, and maintenance tasks.",
+            text: "I can help you with equipment status, temperatures, and maintenance tasks. Try 'fix chiller' or 'status'.",
             engineer: null
         };
     }
