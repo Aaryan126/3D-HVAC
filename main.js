@@ -81,25 +81,26 @@ const collisionObjects = [];
 function createHVACEquipment() {
     const equipment = new THREE.Group();
 
-    // Chiller (large rectangular unit)
-    const chillerGeometry = new THREE.BoxGeometry(4, 3, 2.5);
-    const chillerMaterial = new THREE.MeshStandardMaterial({ color: 0x3498db });
-    const chiller = new THREE.Mesh(chillerGeometry, chillerMaterial);
-    chiller.position.set(-10, 1.5, -8);
-    chiller.castShadow = true;
-    chiller.receiveShadow = true;
-    chiller.userData = { type: 'chiller', id: 'chiller1', isObstacle: true, radius: 2.5 };
-    equipment.add(chiller);
-    collisionObjects.push(chiller);
+    // Load Chiller FBX Model
+    const loader = new FBXLoader();
+    loader.load('Chiller.fbx', (fbx) => {
+        fbx.scale.setScalar(0.04); // 4 times bigger than before
+        fbx.position.set(-10, 0, -8);
 
-    // Add pipes to chiller
-    const pipeGeometry = new THREE.CylinderGeometry(0.15, 0.15, 3, 16);
-    const pipeMaterial = new THREE.MeshStandardMaterial({ color: 0x95a5a6 });
+        fbx.traverse((child) => {
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+            }
+        });
 
-    const pipe1 = new THREE.Mesh(pipeGeometry, pipeMaterial);
-    pipe1.position.set(-10, 1.5, -6);
-    pipe1.rotation.x = Math.PI / 2;
-    equipment.add(pipe1);
+        fbx.userData = { type: 'chiller', id: 'chiller1', isObstacle: true, radius: 2.5 };
+        equipment.add(fbx);
+        collisionObjects.push(fbx);
+
+        // Create equipment label for the chiller
+        createEquipmentLabel(fbx);
+    });
 
     // AHU (Air Handling Unit)
     const ahuGeometry = new THREE.BoxGeometry(3, 2, 2);
