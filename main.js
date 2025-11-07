@@ -170,7 +170,7 @@ function createHVACEquipment() {
     const chillerWaterPumpLoader = new FBXLoader();
     chillerWaterPumpLoader.load('Pump.fbx', (fbx) => {
         fbx.scale.setScalar(0.02); // 50% of original size
-        fbx.position.set(-5, 2, 5);
+        fbx.position.set(-5, 1, 5);
 
         fbx.traverse((child) => {
             if (child.isMesh) {
@@ -196,7 +196,7 @@ function createHVACEquipment() {
     const condenserWaterPumpLoader = new FBXLoader();
     condenserWaterPumpLoader.load('Pump.fbx', (fbx) => {
         fbx.scale.setScalar(0.02); // 50% of original size
-        fbx.position.set(-5, 2, 0);
+        fbx.position.set(-5, 1, 0);
 
         fbx.traverse((child) => {
             if (child.isMesh) {
