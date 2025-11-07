@@ -110,16 +110,26 @@ function createHVACEquipment() {
         createEquipmentLabel(fbx);
     });
 
-    // AHU (Air Handling Unit)
-    const ahuGeometry = new THREE.BoxGeometry(3, 2, 2);
-    const ahuMaterial = new THREE.MeshStandardMaterial({ color: 0x2ecc71 });
-    const ahu = new THREE.Mesh(ahuGeometry, ahuMaterial);
-    ahu.position.set(8, 1, -8);
-    ahu.castShadow = true;
-    ahu.receiveShadow = true;
-    ahu.userData = { type: 'ahu', id: 'ahu1', isObstacle: true, radius: 2 };
-    equipment.add(ahu);
-    collisionObjects.push(ahu);
+    // Load AHU FBX Model
+    const ahuLoader = new FBXLoader();
+    ahuLoader.load('AHU.fbx', (fbx) => {
+        fbx.scale.setScalar(0.04); // Same scale as chiller
+        fbx.position.set(8, 0, -8);
+
+        fbx.traverse((child) => {
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+            }
+        });
+
+        fbx.userData = { type: 'ahu', id: 'ahu1', isObstacle: true, radius: 3 };
+        equipment.add(fbx);
+        collisionObjects.push(fbx);
+
+        // Create equipment label for the AHU
+        createEquipmentLabel(fbx);
+    });
 
     // Pump
     const pumpGeometry = new THREE.CylinderGeometry(0.8, 1, 1.5, 32);
@@ -196,12 +206,17 @@ class Engineer {
             // Set up animation mixer
             this.mixer = new THREE.AnimationMixer(this.model);
 
-            // Store standing animation
+            // Store standing animation and play immediately
             if (fbx.animations.length > 0) {
                 const action = this.mixer.clipAction(fbx.animations[0]);
                 action.setLoop(THREE.LoopRepeat);
                 this.animations.standing = action;
                 this.animationsLoaded++;
+
+                // Play standing animation immediately to avoid T-pose
+                action.play();
+                this.currentState = 'idle';
+                this.currentAnimation = 'standing';
             }
 
             // Load other animations
@@ -260,6 +275,7 @@ class Engineer {
     checkCollision(newPosition) {
         const engineerRadius = 0.5;
 
+        // Check collision with equipment
         for (const obj of collisionObjects) {
             const objPos = new THREE.Vector3();
             obj.getWorldPosition(objPos);
@@ -276,10 +292,25 @@ class Engineer {
             }
         }
 
+        // Check collision with other engineers
+        for (const otherEngineer of engineers) {
+            if (otherEngineer === this || !otherEngineer.model) continue;
+
+            const otherPos = otherEngineer.model.position;
+            const distance = new THREE.Vector2(
+                newPosition.x - otherPos.x,
+                newPosition.z - otherPos.z
+            ).length();
+
+            if (distance < engineerRadius * 2) {
+                return true;  // Collision with other engineer
+            }
+        }
+
         return false;  // No collision
     }
 
-    moveTo(targetPos) {
+    moveTo(targetPos, onArrival = null) {
         // Check if target position has collision
         if (this.checkCollision(targetPos)) {
             // Find alternative position nearby
@@ -294,6 +325,7 @@ class Engineer {
 
         this.targetPosition = targetPos.clone();
         this.targetPosition.y = 0;
+        this.onArrivalCallback = onArrival;
     }
 
     update(deltaTime) {
@@ -301,22 +333,14 @@ class Engineer {
             this.mixer.update(deltaTime);
         }
 
-        // State machine
-        if (this.isSpeaking) {
-            if (this.currentState !== 'talking') {
-                this.setState('talking');
-            }
-        } else if (this.isWorking) {
-            if (this.currentState !== 'working') {
-                this.setState('working');
-            }
-        } else if (this.targetPosition && this.model) {
+        // Handle movement first (before state changes)
+        if (this.targetPosition && this.model && !this.isWorking) {
             // Movement state
             const direction = new THREE.Vector3().subVectors(this.targetPosition, this.model.position);
             direction.y = 0;  // Keep movement on horizontal plane
             const distance = direction.length();
 
-            if (distance > 0.2) {
+            if (distance > 0.5) {
                 // Ensure walking animation is playing
                 if (this.currentState !== 'walking') {
                     this.setState('walking');
@@ -333,6 +357,21 @@ class Engineer {
                 // Check collision before moving
                 if (!this.checkCollision(newPosition)) {
                     this.model.position.copy(newPosition);
+                } else {
+                    // Try to move around obstacle
+                    // Try moving perpendicular to the direction
+                    const perpendicular1 = new THREE.Vector3(-direction.z, 0, direction.x);
+                    const perpendicular2 = new THREE.Vector3(direction.z, 0, -direction.x);
+
+                    const alt1 = this.model.position.clone().addScaledVector(perpendicular1, moveDistance);
+                    const alt2 = this.model.position.clone().addScaledVector(perpendicular2, moveDistance);
+
+                    if (!this.checkCollision(alt1)) {
+                        this.model.position.copy(alt1);
+                    } else if (!this.checkCollision(alt2)) {
+                        this.model.position.copy(alt2);
+                    }
+                    // If both blocked, just wait until path clears
                 }
 
                 // Smoothly rotate to face movement direction
@@ -344,13 +383,31 @@ class Engineer {
             } else {
                 // Reached destination
                 this.targetPosition = null;
+
+                // Call arrival callback if it exists
+                if (this.onArrivalCallback) {
+                    this.onArrivalCallback();
+                    this.onArrivalCallback = null;
+                }
+
                 if (!this.isSpeaking && !this.isWorking) {
                     this.setState('idle');
                 }
             }
-        } else {
+        }
+
+        // State management - set animation based on current state
+        if (this.isWorking) {
+            if (this.currentState !== 'working') {
+                this.setState('working');
+            }
+        } else if (this.isSpeaking && !this.targetPosition) {
+            if (this.currentState !== 'talking') {
+                this.setState('talking');
+            }
+        } else if (!this.targetPosition && !this.isWorking && !this.isSpeaking) {
             // Idle state
-            if (this.currentState !== 'idle' && !this.isSpeaking && !this.isWorking) {
+            if (this.currentState !== 'idle') {
                 this.setState('idle');
             }
         }
@@ -591,14 +648,32 @@ function handleAIResponse(message) {
         if (equipmentId && equipmentPositions[equipmentId]) {
             const engineer = engineers[Math.floor(Math.random() * engineers.length)];
 
-            // Move engineer to equipment - stand far enough to avoid collision
-            const targetPos = equipmentPositions[equipmentId].clone();
-            targetPos.x += 4; // Stand well away from equipment to avoid collision
-            targetPos.z += 2;
-            engineer.moveTo(targetPos);
+            // Calculate position next to equipment based on equipment size
+            const equipmentPos = equipmentPositions[equipmentId].clone();
+            const targetPos = equipmentPos.clone();
 
-            // After walking, start working
-            setTimeout(() => {
+            // Position based on specific equipment - just outside collision radius
+            if (equipmentId === 'chiller1') {
+                // Chiller has radius 5, so stand at 5.5 units away
+                targetPos.x -= 5.5; // Stand to the left of chiller
+                targetPos.z += 0;
+            } else if (equipmentId === 'ahu1') {
+                // AHU has radius 3, so stand at 3.5 units away
+                targetPos.x += 3.5; // Stand to the right of AHU
+                targetPos.z += 0;
+            } else if (equipmentId === 'pump1') {
+                // Pump has radius 1.5, so stand at 2 units away
+                targetPos.x -= 2; // Stand to the left of pump
+                targetPos.z += 0;
+            } else if (equipmentId === 'coolingTower') {
+                // Tower has radius 2.8, so stand at 3.3 units away
+                targetPos.x -= 3.3; // Stand to the left of tower
+                targetPos.z += 0;
+            }
+
+            // Move to equipment with callback when arrived
+            engineer.moveTo(targetPos, () => {
+                // This runs when engineer actually arrives at the equipment
                 engineer.work(8000); // Work for 8 seconds
                 engineer.speak(`Working on the ${equipmentName} now...`, 3000);
 
@@ -610,7 +685,7 @@ function handleAIResponse(message) {
                         engineer.speak(`${equipmentName} is fixed! Back to normal operation.`, 4000);
                     }
                 }, 8000);
-            }, 5000); // Wait 5 seconds for engineer to walk there
+            });
 
             return {
                 text: `${engineer.name} is heading to fix the ${equipmentName}.`,
