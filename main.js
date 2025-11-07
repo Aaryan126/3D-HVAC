@@ -204,6 +204,14 @@ class Engineer {
             // Set up animation mixer
             this.mixer = new THREE.AnimationMixer(this.model);
 
+            // Disable root motion for smoother movement
+            this.mixer.addEventListener('loop', (e) => {
+                if (this.currentAnimation === 'walking') {
+                    // Reset only rotation, not position to avoid pullback
+                    this.model.position.y = 0;
+                }
+            });
+
             // Store standing animation and play immediately
             if (fbx.animations.length > 0) {
                 const action = this.mixer.clipAction(fbx.animations[0]);
@@ -228,9 +236,24 @@ class Engineer {
         const loader = new FBXLoader();
         loader.load(file, (fbx) => {
             if (fbx.animations.length > 0) {
-                const action = this.mixer.clipAction(fbx.animations[0]);
-                action.setLoop(THREE.LoopRepeat);
-                this.animations[name] = action;
+                const clip = fbx.animations[0];
+
+                // Remove position tracks for walking animation to prevent pullback
+                if (name === 'walking') {
+                    const tracks = clip.tracks.filter(track => {
+                        // Keep all tracks except position tracks
+                        return !track.name.includes('.position');
+                    });
+                    const newClip = new THREE.AnimationClip(clip.name, clip.duration, tracks);
+                    const action = this.mixer.clipAction(newClip);
+                    action.setLoop(THREE.LoopRepeat);
+                    this.animations[name] = action;
+                } else {
+                    const action = this.mixer.clipAction(clip);
+                    action.setLoop(THREE.LoopRepeat);
+                    this.animations[name] = action;
+                }
+
                 this.animationsLoaded++;
 
                 // Once all animations loaded, start with standing
