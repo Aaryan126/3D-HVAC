@@ -153,13 +153,6 @@ function createHVACEquipment() {
     equipment.add(coolingTower);
     collisionObjects.push(coolingTower);
 
-    // Add some ductwork
-    const ductGeometry = new THREE.BoxGeometry(8, 0.5, 0.5);
-    const ductMaterial = new THREE.MeshStandardMaterial({ color: 0x7f8c8d });
-    const duct = new THREE.Mesh(ductGeometry, ductMaterial);
-    duct.position.set(0, 4, -8);
-    equipment.add(duct);
-
     return equipment;
 }
 
