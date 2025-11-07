@@ -98,7 +98,7 @@ function createHVACEquipment() {
     const loader = new FBXLoader();
     loader.load('Chiller.fbx', (fbx) => {
         fbx.scale.setScalar(0.04); // 4 times bigger than before
-        fbx.position.set(-10, 0, -8);
+        fbx.position.set(-10, 2, -8);
 
         fbx.traverse((child) => {
             if (child.isMesh) {
@@ -119,7 +119,7 @@ function createHVACEquipment() {
     const ahuLoader = new FBXLoader();
     ahuLoader.load('AHU.fbx', (fbx) => {
         fbx.scale.setScalar(0.04); // Same scale as chiller
-        fbx.position.set(8, 0, -8);
+        fbx.position.set(8, 2, -8);
 
         fbx.traverse((child) => {
             if (child.isMesh) {
@@ -136,23 +136,33 @@ function createHVACEquipment() {
         createEquipmentLabel(fbx);
     });
 
-    // Pump
-    const pumpGeometry = new THREE.CylinderGeometry(0.8, 1, 1.5, 32);
-    const pumpMaterial = new THREE.MeshStandardMaterial({ color: 0xe74c3c });
-    const pump = new THREE.Mesh(pumpGeometry, pumpMaterial);
-    pump.position.set(-5, 0.75, 5);
-    pump.castShadow = true;
-    pump.receiveShadow = true;
-    pump.userData = { type: 'pump', id: 'pump1', isObstacle: true, radius: 1.5 };
-    equipment.add(pump);
-    collisionObjects.push(pump);
+    // Load Pump FBX Model
+    const pumpLoader = new FBXLoader();
+    pumpLoader.load('Pump.fbx', (fbx) => {
+        fbx.scale.setScalar(0.04); // Same scale as other equipment
+        fbx.position.set(-5, 2, 5);
+
+        fbx.traverse((child) => {
+            if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+            }
+        });
+
+        fbx.userData = { type: 'pump', id: 'pump1', isObstacle: true, radius: 1.5 };
+        equipment.add(fbx);
+        collisionObjects.push(fbx);
+
+        // Create equipment label for the pump
+        createEquipmentLabel(fbx);
+    });
 
     // Load Cooling Tower FBX Model
     const ctLoader = new FBXLoader();
 
     ctLoader.load('CT.fbx', (fbx) => {
         fbx.scale.setScalar(0.04); // Same scale as other equipment
-        fbx.position.set(10, 0, 5);
+        fbx.position.set(10, 2, 5);
 
         // Set up shadows
         fbx.traverse((child) => {
