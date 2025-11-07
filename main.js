@@ -488,7 +488,10 @@ setInterval(() => {
 // Chatbot Functions
 window.toggleChatbot = function() {
     const chatbot = document.getElementById('chatbot-container');
+    const icon = document.getElementById('chatbot-icon');
+
     chatbot.classList.toggle('collapsed');
+    icon.classList.toggle('hidden');
 };
 
 window.sendMessage = function() {
